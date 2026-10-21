@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบประเมินการเรียนการสอน</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        .gradient-bg { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); }
+        .card-shadow { box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); }
+        .step-active { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+        .step-completed { background: linear-gradient(135deg, #10b981, #059669); }
+        .student-card:hover { transform: translateY(-2px); transition: all 0.3s ease; }
+        .student-card.selected { border-color: #3b82f6; background-color: #eff6ff; }
+        .student-image { object-fit: contain; }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans">
+
+    <nav id="mainNav" class="gradient-bg text-white shadow-lg hidden">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-graduation-cap text-3xl"></i>
+                <h1 class="text-xl font-bold">ระบบประเมินการเรียนการสอน</h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <span id="headerName" class="font-semibold"></span>
+                <button onclick="logout()" class="bg-red-500 hover:bg-red-600 px-5 py-2 rounded-lg text-sm transition-colors">ออกจากระบบ</button>
+            </div>
+        </div>
+    </nav>
+
+    <div id="loadingScreen" class="min-h-screen flex items-center justify-center gradient-bg">
+        <div class="text-center text-white">
+            <i class="fas fa-spinner fa-spin text-6xl mb-6"></i>
+            <h2 id="loadingTitle" class="text-2xl font-bold">กำลังประมวลผล...</h2>
+        </div>
+    </div>
+
+    <div id="passwordLoginForm" class="hidden min-h-screen flex items-center justify-center gradient-bg p-4">
+        <div class="bg-white rounded-3xl card-shadow p-10 w-full max-w-md">
+            
+            <div class="text-center mb-8">
+                <div class="bg-blue-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i id="loginIcon" class="fas fa-user-tie text-3xl text-blue-600"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-800">เข้าสู่ระบบ</h2>
+                <p class="text-gray-500 mt-1">ระบบประเมินการเรียนการสอน</p>
+            </div>
+
+            <div class="flex justify-center gap-6 mb-6 border-b pb-4">
+                <label class="inline-flex items-center cursor-pointer">
+                    <input type="radio" name="loginRole" value="teacher" checked onchange="toggleLoginRole()" class="form-radio text-blue-600 h-5 w-5">
+                    <span class="ml-2 font-semibold text-gray-700">อาจารย์</span>
+                </label>
+                <label class="inline-flex items-center cursor-pointer">
+                    <input type="radio" name="loginRole" value="student" onchange="toggleLoginRole()" class="form-radio text-green-600 h-5 w-5">
+                    <span class="ml-2 font-semibold text-gray-700">นิสิต</span>
+                </label>
+            </div>
+
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="space-y-4">
+                    <div>
+                        <label id="usernameLabel" class="block text-sm font-medium text-gray-700 mb-1">อีเมลอาจารย์ (Username)</label>
+                        <input type="text" id="loginUsername" required class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">รหัสผ่าน</label>
+                        <input type="password" id="loginPassword" required class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <button type="submit" id="btnLogin" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-colors mt-2">เข้าสู่ระบบ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="studentApp" class="hidden container mx-auto px-4 py-8">
+        
+        <div class="bg-white shadow-sm border-b mb-6 rounded-xl overflow-hidden">
+            <div class="flex px-2 sm:px-4">
+                <button onclick="showStudentTab('history')" id="studentHistoryTab" class="py-4 px-4 border-b-2 font-semibold flex items-center space-x-2 border-blue-600 text-blue-600 transition-colors">
+                    <i class="fas fa-history"></i><span class="hidden sm:inline">ประวัติการประเมิน</span>
+                </button>
+                <button onclick="showStudentTab('details')" id="studentDetailsTab" class="py-4 px-4 border-b-2 flex items-center space-x-2 text-gray-500 hover:text-blue-600 transition-colors">
+                    <i class="fas fa-list-alt"></i><span class="hidden sm:inline">รายละเอียดแบบประเมิน</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="studentHistoryContent">
+            <div class="bg-white rounded-xl card-shadow p-6 mb-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4"><i class="fas fa-chart-pie text-blue-500 mr-2"></i>สรุปภาพรวมการประเมิน</h2>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div class="col-span-1 flex items-center space-x-4 bg-blue-50 p-4 rounded-xl border border-blue-100">
+                        <div class="bg-blue-100 p-4 rounded-full"><i class="fas fa-clipboard-check text-3xl text-blue-600"></i></div>
+                        <div>
+                            <p class="text-sm text-gray-600 font-semibold mb-1">ถูกประเมินทั้งหมด</p>
+                            <p class="text-3xl font-bold text-blue-700"><span id="studentTotalAssessments">0</span> <span class="text-base font-normal text-gray-500">ครั้ง</span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="col-span-1 lg:col-span-2 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                        <p class="text-sm text-gray-700 font-semibold mb-3 border-b border-gray-200 pb-2"><i class="fas fa-list-ul mr-2 text-gray-500"></i>แยกตามหัวข้อแบบประเมิน</p>
+                        <div id="studentAssessmentBreakdown" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-2">
+                            </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl card-shadow p-6">
+                <div class="overflow-x-auto">
+                    <table class="w-full table-auto text-sm">
+                        <thead>
+                            <tr class="bg-gray-100 text-gray-700">
+                                <th class="px-4 py-3 text-left font-semibold rounded-tl-lg">วันที่ประเมิน</th>
+                                <th class="px-4 py-3 text-left font-semibold">หัวข้อแบบประเมิน</th>
+                                <th class="px-4 py-3 text-left font-semibold">ผู้ประเมิน</th>
+                                <th class="px-4 py-3 text-left font-semibold rounded-tr-lg">ข้อเสนอแนะเพิ่มเติม</th>
+                            </tr>
+                        </thead>
+                        <tbody id="studentAssessmentsList" class="divide-y divide-gray-200"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="studentDetailsContent" class="hidden">
+            <div class="bg-white rounded-xl card-shadow p-6 mb-6 border-l-4 border-purple-500">
+                <h2 class="text-2xl font-bold text-gray-800 mb-2"><i class="fas fa-list-ul text-purple-500 mr-2"></i>เกณฑ์และหัวข้อการประเมิน</h2>
+                <p class="text-gray-600">แสดงเฉพาะแบบประเมินที่ตรงกับ <span id="studentYearDisplay" class="font-bold text-blue-600"></span> ของคุณ (คลิกที่หัวข้อเพื่อดูเกณฑ์การให้คะแนน)</p>
+            </div>
+            
+            <div id="studentAssessmentTypesList" class="space-y-4"></div>
+        </div>
+    </div>
+
+    <div id="mainApp" class="hidden">
+        <div class="bg-white shadow-sm border-b">
+            <div class="container mx-auto px-4">
+                <div class="flex space-x-8">
+                    <button onclick="showTab('dashboard')" id="dashboardTab" class="py-4 px-2 border-b-2 font-semibold flex items-center space-x-2 border-blue-600 text-blue-600">แดชบอร์ด</button>
+                    <button onclick="showTab('assessment')" id="assessmentTab" class="py-4 px-2 border-b-2 flex items-center space-x-2 text-gray-500 hover:text-blue-600">ประเมิน</button>
+                    <button onclick="showTab('manage')" id="manageTab" class="py-4 px-2 border-b-2 flex items-center space-x-2 text-gray-500 hover:text-blue-600">จัดการ</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="dashboardContent" class="container mx-auto px-4 py-8">
+            <div class="bg-white rounded-xl card-shadow p-6 mb-8">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">ตัวกรองข้อมูล</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div><label class="block text-sm font-medium text-gray-700 mb-2">แบบประเมิน</label><select id="filterAssessment" onchange="applyFilters()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"></select></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-2">กลุ่มนิสิต</label><select id="filterGroup" onchange="applyFilters()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"></select></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-2">ชื่อนิสิต</label><select id="filterStudent" onchange="applyFilters()" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"></select></div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div class="bg-white rounded-xl card-shadow p-6 flex items-center space-x-4"><div class="bg-blue-100 p-3 rounded-full"><i class="fas fa-clipboard-list text-2xl text-blue-600"></i></div><div><h3 class="text-lg font-semibold text-gray-800">จำนวนการประเมิน</h3><p id="totalAssessments" class="text-3xl font-bold text-blue-600">0</p></div></div>
+                <div class="bg-white rounded-xl card-shadow p-6 flex items-center space-x-4"><div class="bg-green-100 p-3 rounded-full"><i class="fas fa-users text-2xl text-green-600"></i></div><div><h3 class="text-lg font-semibold text-gray-800">จำนวนนิสิตที่ประเมิน</h3><p id="totalStudents" class="text-3xl font-bold text-green-600">0</p></div></div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-xl card-shadow p-6"><h3 class="text-lg font-semibold text-gray-800 mb-4">สัดส่วนประเภทแบบประเมิน</h3><div class="relative h-80 w-full"><canvas id="assessmentTypeChart"></canvas><p id="noDataAssessmentType" class="hidden text-center text-gray-500 absolute inset-0 flex items-center justify-center">ไม่มีข้อมูล</p></div></div>
+                <div class="bg-white rounded-xl card-shadow p-6"><h3 class="text-lg font-semibold text-gray-800 mb-4">สัดส่วนนิสิตที่ประเมิน (10 อันดับแรก)</h3><div class="relative h-80 w-full"><canvas id="studentChart"></canvas><p id="noDataStudentChart" class="hidden text-center text-gray-500 absolute inset-0 flex items-center justify-center">ไม่มีข้อมูล</p></div></div>
+            </div>
+        </div>
+
+        <div id="assessmentContent" class="container mx-auto px-4 py-8 hidden">
+            <div class="bg-white rounded-xl card-shadow p-6 mb-8"><div id="stepIndicator" class="flex items-center justify-between"></div></div>
+            
+            <div id="selectStudents" class="bg-white rounded-xl card-shadow p-6">
+                <h3 class="text-xl font-semibold text-gray-800 mb-6">ขั้นตอนที่ 1: เลือกนิสิตที่ต้องการประเมิน</h3>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">เลือกกลุ่ม</label>
+                    <select id="studentGroup" onchange="loadStudentsByGroup()" class="w-full md:w-1/3 px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500"></select>
+                </div>
+                <div id="studentsList" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-6"></div>
+                <div class="flex justify-between items-center mt-6 border-t pt-4">
+                    <span id="selectedCount" class="text-sm text-gray-600">เลือกแล้ว: 0 คน</span>
+                    <button onclick="nextStep(2)" id="nextToStep2" disabled class="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-semibold">ถัดไป</button>
+                </div>
+            </div>
+            
+            <div id="selectAssessmentType" class="bg-white rounded-xl card-shadow p-6 hidden">
+                <h3 class="text-xl font-semibold text-gray-800 mb-6">ขั้นตอนที่ 2: เลือกแบบประเมิน</h3>
+                <div id="assessmentTypesList" class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6"></div>
+                <div class="flex justify-between mt-6 border-t pt-4">
+                    <button onclick="prevStep(1)" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-semibold">ย้อนกลับ</button>
+                    <button onclick="nextStep(3)" id="nextToStep3" disabled class="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-semibold">ถัดไป</button>
+                </div>
+            </div>
+            
+            <div id="assessmentQuestions" class="bg-white rounded-xl card-shadow p-6 hidden">
+                <h3 class="text-xl font-semibold text-gray-800 mb-6">ขั้นตอนที่ 3: แบบประเมิน</h3>
+                <div id="questionsList" class="space-y-6 mb-6"></div>
+                <div class="flex justify-between mt-6 border-t pt-4">
+                    <button onclick="prevStep(2)" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-semibold">ย้อนกลับ</button>
+                    <button onclick="nextStep(4)" id="nextToStep4" disabled class="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-semibold">ถัดไป</button>
+                </div>
+            </div>
+            
+            <div id="assessmentSummary" class="bg-white rounded-xl card-shadow p-6 hidden">
+                <h3 class="text-xl font-semibold text-gray-800 mb-6">ขั้นตอนที่ 4: สรุปผลการประเมิน</h3>
+                <div id="summaryContent" class="mb-6"></div>
+                <div class="flex justify-between mt-6 border-t pt-4">
+                    <button onclick="prevStep(3)" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-semibold">ย้อนกลับ</button>
+                    <button onclick="saveAssessment()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-semibold"><i class="fas fa-save mr-2"></i>บันทึกการประเมิน</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="manageContent" class="container mx-auto px-4 py-8 hidden">
+            <div class="bg-white rounded-xl card-shadow p-6">
+                <h3 class="text-xl font-semibold text-gray-800 mb-6">จัดการการประเมิน</h3>
+                <div class="mb-4 flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-4">
+                    <input id="searchInput" type="text" placeholder="ค้นหาชื่อนิสิตหรือแบบประเมิน..." class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500">
+                    <div class="flex w-full md:w-auto space-x-2">
+                         <button onclick="searchAssessments()" class="w-full md:w-auto bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center"><i class="fas fa-search mr-2"></i>ค้นหา</button>
+                         <button onclick="clearSearch()" class="w-full md:w-auto bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 flex items-center justify-center"><i class="fas fa-times mr-2"></i>ล้าง</button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full table-auto"><thead class="bg-gray-50"><tr><th class="px-4 py-3 text-left text-sm font-semibold">วันที่</th><th class="px-4 py-3 text-left text-sm font-semibold">วันที่แก้ไข</th><th class="px-4 py-3 text-left text-sm font-semibold">นิสิต</th><th class="px-4 py-3 text-left text-sm font-semibold">กลุ่ม</th><th class="px-4 py-3 text-left text-sm font-semibold">แบบประเมิน</th><th class="px-4 py-3 text-left text-sm font-semibold">คะแนนรวม</th><th class="px-4 py-3 text-center text-sm font-semibold">จัดการ</th></tr></thead><tbody id="assessmentsList"></tbody></table>
+                </div>
+                <div id="paginationControls" class="mt-4 flex justify-between items-center text-sm text-gray-700"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-xl p-6 w-full max-w-4xl max-h-full overflow-y-auto">
+            <div class="flex justify-between items-center mb-6 pb-4 border-b">
+                <h3 class="text-xl font-semibold text-gray-800">แก้ไขการประเมิน</h3>
+                <button onclick="closeEditModal()" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div id="editContent"></div>
+             <div class="flex justify-end mt-6 pt-4 border-t">
+                 <button onclick="closeEditModal()" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg mr-3 font-semibold">ยกเลิก</button>
+                 <button onclick="saveEditAssessment()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold">บันทึกการแก้ไข</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+let currentUser = null;
+let allData = { assessments: [], teacherFullname: '', students: [], assessmentTypes: [] };
+let filteredAssessments = [];
+let selectedStudents = [];
+let selectedAssessmentType = null;
+let assessmentAnswers = {};
+let currentEditAssessmentId = null;
+let currentPage = 1;
+const ITEMS_PER_PAGE = 10;
+
+document.addEventListener('DOMContentLoaded', () => {
+    const savedSession = localStorage.getItem('schoolAppSession');
+    if (savedSession) {
+        const sessionData = JSON.parse(savedSession);
+        currentUser = sessionData.user || sessionData; 
+        document.getElementById('loadingScreen').classList.remove('hidden');
+        document.getElementById('passwordLoginForm').classList.add('hidden');
+        loadAppByRole();
+        return;
+    }
+    document.getElementById('loadingScreen').classList.add('hidden');
+    document.getElementById('passwordLoginForm').classList.remove('hidden');
+});
+
+function runAsync(functionName, ...args) {
+    return new Promise((resolve, reject) => {
+        google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            [functionName](...args);
+    });
+}
+
+function toggleLoginRole() {
+    const role = document.querySelector('input[name="loginRole"]:checked').value;
+    const label = document.getElementById('usernameLabel');
+    const icon = document.getElementById('loginIcon');
+    const btn = document.getElementById('btnLogin');
+    
+    if (role === 'teacher') {
+        label.textContent = 'อีเมลอาจารย์ (Username)';
+        icon.className = 'fas fa-user-tie text-3xl text-blue-600';
+        btn.className = 'w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-colors mt-2';
+    } else {
+        label.textContent = 'รหัสนิสิต (Student ID)';
+        icon.className = 'fas fa-user-graduate text-3xl text-green-600';
+        btn.className = 'w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl transition-colors mt-2';
+    }
+    document.getElementById('loginUsername').value = '';
+    document.getElementById('loginPassword').value = '';
+}
+
+async function handleLogin(event) {
+    event.preventDefault();
+    const role = document.querySelector('input[name="loginRole"]:checked').value;
+    const username = document.getElementById('loginUsername').value.trim();
+    const password = document.getElementById('loginPassword').value.trim();
+    const btn = document.getElementById('btnLogin');
+    
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> กำลังตรวจสอบ...';
+
+    try {
+        let result = role === 'teacher' 
+            ? await runAsync('loginUser', username, password)
+            : await runAsync('loginStudent', username, password);
+
+        if (result.success) {
+            currentUser = result.data.user;
+            saveSession(currentUser);
+            document.getElementById('passwordLoginForm').classList.add('hidden');
+            document.getElementById('loadingScreen').classList.remove('hidden');
+            await loadAppByRole();
+        } else {
+            Swal.fire('ไม่สำเร็จ', result.message, 'error');
+            resetPasswordBtn();
+        }
+    } catch (error) {
+        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
+        resetPasswordBtn();
+    }
+}
+
+function saveSession(user) {
+    localStorage.setItem('schoolAppSession', JSON.stringify({ user: user }));
+}
+
+async function loadAppByRole() {
+    if (currentUser.role === 'teacher') {
+        document.getElementById('loadingTitle').textContent = 'กำลังโหลดข้อมูลอาจารย์...';
+        await initializeMainApp();
+    } else if (currentUser.role === 'student') {
+        document.getElementById('loadingTitle').textContent = 'กำลังโหลดข้อมูลประวัตินิสิต...';
+        await initializeStudentApp();
+    }
+}
+
+function resetPasswordBtn() {
+    const btn = document.getElementById('btnLogin');
+    btn.disabled = false;
+    btn.innerHTML = 'เข้าสู่ระบบ';
+}
+
+function logout() {
+    Swal.fire({
+        title: 'ออกจากระบบ?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // 1. ล้างข้อมูล Session และตัวแปรในเครื่อง
+            localStorage.removeItem('schoolAppSession');
+            currentUser = null;
+            allData = { assessments: [], teacherFullname: '', students: [], assessmentTypes: [] };
+            
+            // 2. ซ่อนหน้าแอปพลิเคชันทั้งหมด
+            document.getElementById('mainApp').classList.add('hidden');
+            document.getElementById('studentApp').classList.add('hidden');
+            document.getElementById('mainNav').classList.add('hidden');
+            
+            // 3. ล้างค่าที่เคยพิมพ์ค้างไว้ในช่อง Login
+            document.getElementById('loginUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+            resetPasswordBtn();
+            
+            // 4. โชว์หน้า Login กลับขึ้นมา
+            document.getElementById('passwordLoginForm').classList.remove('hidden');
+
+            // แสดงแจ้งเตือนเล็กๆ มุมขวาบนว่าออกระบบสำเร็จ
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'ออกจากระบบเรียบร้อย',
+                showConfirmButton: false,
+                timer: 1500
+            });
+        }
+    });
+}
+// ==================== STUDENT APP ====================
+async function initializeStudentApp() {
+    try {
+        const result = await runAsync('getStudentData', currentUser.id);
+        if (!result.success) throw new Error(result.message);
+        
+        document.getElementById('loadingScreen').classList.add('hidden');
+        document.getElementById('mainNav').classList.remove('hidden');
+        document.getElementById('studentApp').classList.remove('hidden');
+        
+        document.getElementById('headerName').textContent = result.data.fullname;
+        document.getElementById('studentTotalAssessments').textContent = result.data.assessments.length;
+        
+        const yearDisplay = result.data.studentYear ? `ชั้นปีที่ ${result.data.studentYear}` : 'ชั้นปีของคุณ';
+        document.getElementById('studentYearDisplay').textContent = yearDisplay;
+        
+        renderStudentAssessments(result.data.assessments, result.data.types);
+        renderStudentAssessmentTypes(result.data.types, result.data.studentYear);
+        
+        showStudentTab('history');
+    } catch (error) {
+        Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
+        logout();
+    }
+}
+
+function showStudentTab(tabName) {
+    const tabs = ['history', 'details'];
+    tabs.forEach(tab => {
+        const content = document.getElementById(`student${tab.charAt(0).toUpperCase() + tab.slice(1)}Content`);
+        const tabButton = document.getElementById(`student${tab.charAt(0).toUpperCase() + tab.slice(1)}Tab`);
+        const isActive = tab === tabName;
+        
+        content.classList.toggle('hidden', !isActive);
+        tabButton.className = `py-4 px-4 border-b-2 font-semibold flex items-center space-x-2 transition-colors duration-300 ${isActive ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-blue-600'}`;
+    });
+}
+
+function renderStudentAssessments(assessments, types) {
+    const tbody = document.getElementById('studentAssessmentsList');
+    const breakdownContainer = document.getElementById('studentAssessmentBreakdown');
+    
+    tbody.innerHTML = '';
+    breakdownContainer.innerHTML = '';
+    
+    if (assessments.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-500">ยังไม่มีประวัติการถูกประเมินในขณะนี้</td></tr>';
+        breakdownContainer.innerHTML = '<p class="text-sm text-gray-500 italic col-span-full">ยังไม่มีข้อมูลการประเมิน</p>';
+        return;
+    }
+
+    // 1. ส่วนคำนวณและแสดงผล: แจกแจงหัวข้อที่ถูกประเมิน
+    const topicCounts = {};
+    assessments.forEach(a => {
+        topicCounts[a.assessment_name] = (topicCounts[a.assessment_name] || 0) + 1;
+    });
+
+    for (const [topic, count] of Object.entries(topicCounts)) {
+        breakdownContainer.innerHTML += `
+            <div class="flex justify-between items-center bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-100">
+                <span class="text-sm text-gray-700 truncate pr-2" title="${topic}">${topic}</span>
+                <span class="font-bold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full text-xs whitespace-nowrap">${count} ครั้ง</span>
+            </div>
+        `;
+    }
+
+    // 2. ส่วนแสดงผล: ตารางประวัติ (เรียงจากล่าสุดไปเก่าสุด)
+    // สลับเอาข้อมูลล่าสุดขึ้นก่อน (เผื่อประเมินเยอะ นิสิตจะได้เห็นอันใหม่เลย)
+    const sortedAssessments = [...assessments].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    sortedAssessments.forEach(a => {
+        const type = types.find(t => t.name === a.assessment_name);
+        let feedbackText = '<span class="text-gray-400 italic">ไม่มีข้อเสนอแนะ</span>';
+        
+        if (type && type.question) {
+            const qIndex = type.question.findIndex(q => q.type === 'textarea');
+            if (qIndex > -1 && a[`q${qIndex + 1}`]) {
+                feedbackText = a[`q${qIndex + 1}`];
+            }
+        }
+
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-blue-50 transition-colors';
+        tr.innerHTML = `
+            <td class="border-b px-4 py-3 whitespace-nowrap">${new Date(a.timestamp).toLocaleDateString('th-TH')}</td>
+            <td class="border-b px-4 py-3 font-medium text-blue-700">${a.assessment_name}</td> 
+            <td class="border-b px-4 py-3"><div class="flex items-center"><i class="fas fa-chalkboard-teacher text-gray-400 mr-2"></i>${a.teacher_name}</div></td>
+            <td class="border-b px-4 py-3 whitespace-pre-wrap">${feedbackText}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function renderStudentAssessmentTypes(types, studentYear) {
+    const container = document.getElementById('studentAssessmentTypesList');
+    container.innerHTML = '';
+    
+    const cleanStudentYear = String(studentYear || '').trim().replace(/\s+/g, '').toLowerCase();
+
+    const filteredTypes = types.filter(type => {
+        const typeYear = String(type.year || '').trim().replace(/\s+/g, '').toLowerCase();
+        if (!typeYear) return true; 
+        if (!cleanStudentYear) return false; 
+        return typeYear.includes(cleanStudentYear) || cleanStudentYear.includes(typeYear);
+    });
+
+    if (filteredTypes.length === 0) {
+        container.innerHTML = '<div class="bg-white rounded-xl card-shadow p-8 text-center text-gray-500">ไม่พบรายละเอียดแบบประเมินสำหรับชั้นปีของคุณ</div>';
+        return;
+    }
+
+    filteredTypes.forEach(type => {
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-xl card-shadow overflow-hidden border border-gray-100';
+        
+        let questionsHtml = '<div class="p-6 border-t bg-blue-50 space-y-3">';
+        if (type.question && type.question.length > 0) {
+            type.question.forEach((q, index) => {
+                let optionsHtml = '';
+                if (q.type === 'radio' || q.type === 'select') {
+                    // จัดให้ตัวเลือกขึ้นบรรทัดใหม่ และทำเป็นหัวข้อย่อย
+                    optionsHtml = `<div class="mt-2 pl-2">
+                        <p class="text-sm font-semibold text-gray-700 mb-2">เกณฑ์การให้คะแนน:</p>
+                        <ul class="space-y-1.5">
+                            ${(q.options || []).map(opt => `<li class="text-sm text-gray-600 flex items-start"><i class="fas fa-angle-right text-blue-400 mt-1 mr-2 text-xs"></i><span><b>${opt.value} คะแนน</b> : ${opt.text}</span></li>`).join('')}
+                        </ul>
+                    </div>`;
+                } else {
+                    optionsHtml = `<div class="mt-2 pl-2"><p class="text-sm text-purple-600"><i class="fas fa-comment-dots mr-1"></i> ประเภท: ข้อเสนอแนะ (พิมพ์ข้อความ)</p></div>`;
+                }
+
+                questionsHtml += `
+                    <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                        <p class="font-bold text-gray-800">${index + 1}. ${q.text}</p>
+                        ${optionsHtml}
+                    </div>
+                `;
+            });
+        } else {
+            questionsHtml += '<p class="text-gray-500 text-center py-4">ไม่มีรายละเอียดคำถาม</p>';
+        }
+        questionsHtml += '</div>';
+
+        card.innerHTML = `
+            <div class="p-5 flex justify-between items-center cursor-pointer hover:bg-gray-50 transition-colors" onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('.fa-chevron-down').classList.toggle('rotate-180')">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-800">${type.name}</h3>
+                    <p class="text-sm text-gray-500 mt-1">คลิกเพื่อดูหัวข้อการประเมิน</p>
+                </div>
+                <i class="fas fa-chevron-down text-gray-400 transition-transform duration-300"></i>
+            </div>
+            <div class="hidden transition-all duration-300">
+                ${questionsHtml}
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+// ==================== TEACHER APP ====================
+async function initializeMainApp(isReload = false) {
+    if (!currentUser || !currentUser.username) return logout();
+    if (!isReload) document.getElementById('loadingTitle').textContent = 'กำลังโหลดข้อมูลอาจารย์...';
+
+    try {
+        const result = await runAsync('getAllData', currentUser.username);
+        if (!result.success) throw new Error(result.message);
+        
+        allData = result.data;
+        document.getElementById('loadingScreen').classList.add('hidden');
+        document.getElementById('mainNav').classList.remove('hidden');
+        document.getElementById('mainApp').classList.remove('hidden');
+        document.getElementById('headerName').textContent = allData.teacherFullname;
+        
+        populateAllFilters();
+        showTab('dashboard');
+    } catch (error) {
+        Swal.fire('ไม่สามารถโหลดข้อมูลได้', error.message, 'error');
+        logout();
+    }
+}
+
+function showTab(tabName) {
+    const tabs = ['dashboard', 'assessment', 'manage'];
+    tabs.forEach(tab => {
+        const content = document.getElementById(`${tab}Content`);
+        const tabButton = document.getElementById(`${tab}Tab`);
+        const isActive = tab === tabName;
+        content.classList.toggle('hidden', !isActive);
+        tabButton.className = `py-4 px-2 border-b-2 font-semibold flex items-center space-x-2 transition-colors duration-300 ${isActive ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-blue-600'}`;
+    });
+
+    if (tabName === 'dashboard') updateDashboard();
+    if (tabName === 'assessment') resetAssessmentSteps();
+    if (tabName === 'manage') loadManageAssessments();
+}
+
+function updateDashboard() { applyFilters(); }
+
+function populateAllFilters() {
+    const createOptions = (selectId, data, placeholder) => {
+        const select = document.getElementById(selectId);
+        select.innerHTML = `<option value="">${placeholder}</option>`;
+        data.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item; option.textContent = item;
+            select.appendChild(option);
+        });
+    };
+    createOptions('filterAssessment', [...new Set(allData.assessments.map(a => a.assessment_name))].sort(), 'แบบประเมินทั้งหมด');
+    createOptions('filterGroup', [...new Set(allData.students.map(s => s.group))].sort(), 'กลุ่มทั้งหมด');
+    createOptions('filterStudent', [...new Set(allData.assessments.map(a => a.student_fullname))].sort(), 'นิสิตทั้งหมด');
+}
+
+function applyFilters() {
+    const filters = {
+        assessment_name: document.getElementById('filterAssessment').value,
+        student_group: document.getElementById('filterGroup').value,
+        student_fullname: document.getElementById('filterStudent').value,
+    };
+    let assessmentsToRender = allData.assessments;
+    for (const key in filters) {
+        if (filters[key]) assessmentsToRender = assessmentsToRender.filter(a => a[key] === filters[key]);
+    }
+    renderDashboardUI(assessmentsToRender);
+}
+
+function renderDashboardUI(assessments) {
+    document.getElementById('totalAssessments').textContent = assessments.length;
+    document.getElementById('totalStudents').textContent = [...new Set(assessments.map(a => a.student_fullname))].length;
+    const hasData = assessments.length > 0;
+    document.getElementById('noDataAssessmentType').classList.toggle('hidden', hasData);
+    document.getElementById('noDataStudentChart').classList.toggle('hidden', hasData);
+    document.getElementById('assessmentTypeChart').classList.toggle('hidden', !hasData);
+    document.getElementById('studentChart').classList.toggle('hidden', !hasData);
+    if (hasData) updateCharts(assessments);
+}
+
+function updateCharts(assessments) {
+    if (typeof Chart === 'undefined') return;
+    const createChart = (canvasId, type, data, options) => {
+        const existingChart = Chart.getChart(canvasId);
+        if (existingChart) existingChart.destroy();
+        new Chart(document.getElementById(canvasId).getContext('2d'), { type, data, options });
+    };
+    const chartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 20, usePointStyle: true } } } };
+    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6366f1'];
+    const typeCounts = assessments.reduce((acc, a) => { acc[a.assessment_name] = (acc[a.assessment_name] || 0) + 1; return acc; }, {});
+    createChart('assessmentTypeChart', 'doughnut', { labels: Object.keys(typeCounts), datasets: [{ data: Object.values(typeCounts), backgroundColor: colors, borderWidth: 2, borderColor: '#ffffff' }] }, chartOptions);
+    const studentCounts = assessments.reduce((acc, a) => { acc[a.student_fullname] = (acc[a.student_fullname] || 0) + 1; return acc; }, {});
+    const sortedStudents = Object.entries(studentCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    createChart('studentChart', 'bar', { labels: sortedStudents.map(s => s[0]), datasets: [{ label: 'จำนวนการประเมิน', data: sortedStudents.map(s => s[1]), backgroundColor: colors[0] }] }, { ...chartOptions, plugins: { legend: { display: false } } });
+}
+
+function resetAssessmentSteps() {
+    selectedStudents = []; selectedAssessmentType = null; assessmentAnswers = {};
+    document.getElementById('studentGroup').value = '';
+    document.getElementById('studentsList').innerHTML = '<p class="col-span-full text-center text-gray-500">กรุณาเลือกกลุ่มเพื่อแสดงรายชื่อนิสิต</p>';
+    updateSelectedCount(); populateStudentGroupDropdown(); proceedToStep(1);
+}
+
+function populateStudentGroupDropdown() {
+    const select = document.getElementById('studentGroup');
+    select.innerHTML = '<option value="">-- เลือกกลุ่ม --</option>';
+    [...new Set(allData.students.map(s => s.group))].sort().forEach(name => {
+        const option = document.createElement('option'); option.value = name; option.textContent = name; select.appendChild(option);
+    });
+}
+
+function loadStudentsByGroup() {
+    selectedStudents = []; selectedAssessmentType = null; assessmentAnswers = {};
+    updateSelectedCount();
+    
+    const group = document.getElementById('studentGroup').value;
+    const list = document.getElementById('studentsList');
+    list.innerHTML = '';
+    if (!group) return list.innerHTML = '<p class="col-span-full text-center text-gray-500">กรุณาเลือกกลุ่ม</p>';
+    
+    const filtered = allData.students.filter(s => s.group === group);
+    if (filtered.length === 0) return list.innerHTML = '<p class="col-span-full text-center text-gray-500">ไม่พบข้อมูลนิสิตในกลุ่มนี้</p>';
+
+    filtered.forEach(student => {
+        const card = document.createElement('div');
+        const studentYear = student.year || student.Year || student['ชั้นปี'] || '';
+        card.className = `student-card bg-white p-4 rounded-lg shadow flex flex-col items-center cursor-pointer`;
+        card.onclick = () => toggleStudent(student, card);
+        card.innerHTML = `<img src="${student.picture ? student.picture+'=s300' : 'https://via.placeholder.com/300'}" class="student-image mb-3"><p class="text-sm font-medium text-center">${student.fullname}</p>${studentYear ? `<p class="text-xs text-blue-600 mt-1">ชั้นปี: ${studentYear}</p>` : ''}`;
+        list.appendChild(card);
+    });
+}
+
+function toggleStudent(student, cardElement) {
+    const index = selectedStudents.findIndex(s => s.id === student.id);
+    if (index > -1) selectedStudents.splice(index, 1);
+    else selectedStudents.push(student);
+    cardElement.classList.toggle('selected');
+    cardElement.classList.toggle('border-transparent');
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    document.getElementById('selectedCount').textContent = `เลือกแล้ว: ${selectedStudents.length} คน`;
+    document.getElementById('nextToStep2').disabled = selectedStudents.length === 0;
+}
+
+function nextStep(step) { if (step === 3 && !selectedAssessmentType) return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาเลือกแบบประเมิน', 'warning'); proceedToStep(step); }
+function prevStep(step) { proceedToStep(step); }
+
+function proceedToStep(step) {
+    const stepContents = ['selectStudents', 'selectAssessmentType', 'assessmentQuestions', 'assessmentSummary'];
+    document.getElementById('stepIndicator').innerHTML = `<div class="flex items-center">${[1, 2, 3, 4].map(i => `<div class="flex items-center"><div class="${i < step ? 'step-completed' : (i === step ? 'step-active' : 'bg-gray-300')} w-10 h-10 rounded-full flex items-center justify-center text-white font-bold">${i < step ? '<i class="fas fa-check"></i>' : i}</div>${i < 4 ? `<div class="w-8 sm:w-16 h-1 ${i < step ? 'bg-green-500' : 'bg-gray-300'}"></div>` : ''}</div>`).join('')}</div><div class="text-sm text-gray-600 font-semibold">ขั้นตอนที่ ${step}</div>`;
+    stepContents.forEach((id, index) => document.getElementById(id).classList.toggle('hidden', index + 1 !== step));
+    if (step === 2) loadAssessmentTypes(); if (step === 3) loadQuestions(); if (step === 4) showSummary();
+}
+
+function loadAssessmentTypes() {
+    const container = document.getElementById('assessmentTypesList');
+    container.innerHTML = '';
+    const selectedYears = [...new Set(selectedStudents.map(s => String(s.year || s.Year || s['ชั้นปี'] || '').trim().replace(/\s+/g, '').toLowerCase()))].filter(y => y !== '');
+
+    const filteredTypes = allData.assessmentTypes.filter(type => {
+        const typeYear = String(type.year || '').trim().replace(/\s+/g, '').toLowerCase();
+        if (!typeYear) return true;
+        if (selectedYears.length === 0) return false;
+        return selectedYears.some(sy => typeYear.includes(sy) || sy.includes(typeYear));
+    });
+
+    if (filteredTypes.length === 0) {
+        container.innerHTML = '<div class="col-span-full bg-white rounded-xl p-8 text-center text-gray-500 border border-gray-200">ไม่พบแบบประเมินสำหรับชั้นปีของนิสิตที่เลือก</div>';
+        document.getElementById('nextToStep3').disabled = true;
+        return;
+    }
+
+    // จัดตารางแบบประเมินอาจารย์ใหม่ ให้เป็นการ์ด (Grid)
+    filteredTypes.forEach(type => {
+        const isSelected = selectedAssessmentType && selectedAssessmentType.id === type.id;
+        const div = document.createElement('div');
+        div.className = `bg-white border-2 rounded-xl p-4 cursor-pointer hover:border-blue-500 hover:shadow-md transition-all flex justify-between items-start h-full ${isSelected ? 'border-blue-500 ring-2 ring-blue-200 bg-blue-50' : 'border-gray-200'}`;
+        div.onclick = () => selectAssessmentType(type, div);
+        
+        div.innerHTML = `
+            <div class="flex-1 pr-4">
+                <h4 class="font-bold text-gray-800 text-lg leading-tight mb-2">${type.name}</h4>
+                <div class="flex flex-col space-y-1 text-sm text-gray-500">
+                    <span class="flex items-center"><i class="fas fa-layer-group w-5 text-gray-400"></i> ${type.year ? `สำหรับชั้นปี ${type.year}` : 'สำหรับทุกชั้นปี'}</span>
+                    <span class="flex items-center"><i class="fas fa-list-ol w-5 text-gray-400"></i> มีคำถาม ${type.question?.length || 0} ข้อ</span>
+                </div>
+            </div>
+            <div class="flex-shrink-0 pt-1">
+                <i class="fas fa-check-circle text-3xl text-blue-600 transition-transform duration-200 ${isSelected ? 'scale-100 opacity-100' : 'scale-50 opacity-0'}"></i>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+    
+    if (selectedAssessmentType && !filteredTypes.some(t => t.id === selectedAssessmentType.id)) selectedAssessmentType = null;
+    document.getElementById('nextToStep3').disabled = !selectedAssessmentType;
+}
+
+function selectAssessmentType(type, element) {
+    selectedAssessmentType = type;
+    document.querySelectorAll('#assessmentTypesList > div').forEach(el => {
+        const isSelected = el === element;
+        el.classList.toggle('border-blue-500', isSelected);
+        el.classList.toggle('ring-2', isSelected);
+        el.classList.toggle('ring-blue-200', isSelected);
+        el.classList.toggle('bg-blue-50', isSelected);
+        el.classList.toggle('border-gray-200', !isSelected);
+        
+        const checkIcon = el.querySelector('.fa-check-circle');
+        if(isSelected) {
+            checkIcon.classList.remove('scale-50', 'opacity-0');
+            checkIcon.classList.add('scale-100', 'opacity-100');
+        } else {
+            checkIcon.classList.remove('scale-100', 'opacity-100');
+            checkIcon.classList.add('scale-50', 'opacity-0');
+        }
+    });
+    document.getElementById('nextToStep3').disabled = false;
+}
+
+function loadQuestions() {
+    const container = document.getElementById('questionsList');
+    container.innerHTML = '';
+    (selectedAssessmentType?.question || []).forEach(q => {
+        const answer = assessmentAnswers[q.id] || '';
+        const div = document.createElement('div');
+        div.className = 'bg-gray-50 rounded-lg p-4';
+        let html = '';
+        if (q.type === 'radio') {
+            html = '<div class="flex flex-wrap gap-4">';
+            (q.options || []).forEach(opt => html += `<label class="flex items-center space-x-2 cursor-pointer"><input type="radio" name="${q.id}" value="${opt.value}" ${String(answer) === String(opt.value) ? 'checked' : ''} onchange="updateAnswer('${q.id}', this.value)" class="text-blue-600 focus:ring-blue-500 h-5 w-5"> <span class="text-gray-700">${opt.text}</span></label>`);
+            html += '</div>';
+        } else if (q.type === 'select') {
+            html = `<select name="${q.id}" onchange="updateAnswer('${q.id}', this.value)" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"><option value="">-- เลือก --</option>`;
+            (q.options || []).forEach(opt => html += `<option value="${opt.value}" ${String(answer) === String(opt.value) ? 'selected' : ''}>${opt.text}</option>`);
+            html += `</select>`;
+        } else if (q.type === 'textarea') {
+            html = `<textarea name="${q.id}" oninput="updateAnswer('${q.id}', this.value)" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">${answer}</textarea>`;
+        }
+        div.innerHTML = `<h4 class="font-semibold mb-3 text-gray-800">${q.text}</h4>${html}`;
+        container.appendChild(div);
+    });
+    updateNextButtonState();
+}
+
+function updateAnswer(questionId, value) { assessmentAnswers[questionId] = value; updateNextButtonState(); }
+
+function updateNextButtonState() {
+    document.getElementById('nextToStep4').disabled = !(selectedAssessmentType?.question || []).filter(q => q.type !== 'textarea').every(q => assessmentAnswers[q.id] !== undefined && assessmentAnswers[q.id] !== '');
+}
+
+function showSummary() {
+    let totalScore = 0;
+    const html = (selectedAssessmentType?.question || []).map(q => {
+        const answer = assessmentAnswers[q.id] || '';
+        let display = '-';
+        if (q.type === 'radio' || q.type === 'select') {
+            const opt = (q.options || []).find(o => String(o.value) === String(answer));
+            if (q.type === 'radio') {
+                if (!isNaN(parseFloat(answer))) totalScore += parseFloat(answer);
+                display = opt ? `${opt.text} (${opt.value})` : '-';
+            } else {
+                display = opt ? opt.text : (answer || '-');
+            }
+        } else display = answer || '-';
+        return `<tr><td class="border px-4 py-2">${q.text}</td><td class="border px-4 py-2">${display}</td></tr>`;
+    }).join('');
+
+    document.getElementById('summaryContent').innerHTML = `<div class="mb-4 text-gray-800"><strong>นิสิต:</strong> ${selectedStudents.map(s => s.fullname).join(', ')}</div><div class="mb-6 text-gray-800"><strong>แบบประเมิน:</strong> ${selectedAssessmentType.name}</div><table class="w-full table-auto"><thead><tr class="bg-gray-100 text-gray-800"><th class="border px-4 py-2 text-left">คำถาม</th><th class="border px-4 py-2 text-left">คำตอบ</th></tr></thead><tbody class="text-gray-700">${html}</tbody><tfoot><tr class="bg-blue-50 font-bold text-blue-800"><td class="border px-4 py-2 text-right">คะแนนรวม</td><td class="border px-4 py-2">${totalScore}</td></tr></tfoot></table>`;
+}
+
+async function saveAssessment() {
+    if (!(await Swal.fire({title:'ยืนยันการบันทึก?', text:`สำหรับนิสิต ${selectedStudents.length} คน`, icon:'question', showCancelButton:true, confirmButtonText:'บันทึก'})).isConfirmed) return;
+    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    
+    const data = selectedStudents.map(student => {
+        const record = { student_fullname: student.fullname, student_group: student.group, teacher_name: allData.teacherFullname, assessment_name: selectedAssessmentType.name };
+        (selectedAssessmentType.question || []).forEach((q, i) => record[`q${i + 1}`] = assessmentAnswers[q.id] || '');
+        return record;
+    });
+
+    try {
+        const res = await runAsync('saveAssessment', data);
+        if (res.success) { Swal.fire('สำเร็จ!', res.data.message, 'success'); await initializeMainApp(true); showTab('dashboard'); }
+        else Swal.fire('ข้อผิดพลาด', res.message, 'error');
+    } catch (error) { Swal.fire('ข้อผิดพลาด', error.message, 'error'); }
+}
+
+function loadManageAssessments() { filteredAssessments = [...allData.assessments]; currentPage = 1; renderPaginatedAssessments(); }
+
+function renderPaginatedAssessments() {
+    const list = document.getElementById('assessmentsList');
+    if (filteredAssessments.length === 0) return list.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-gray-500">ไม่พบข้อมูลการประเมิน</td></tr>';
+    
+    const totalPages = Math.ceil(filteredAssessments.length / ITEMS_PER_PAGE);
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    list.innerHTML = '';
+    
+    filteredAssessments.slice(start, start + ITEMS_PER_PAGE).forEach(a => {
+        const type = allData.assessmentTypes.find(t => t.name === a.assessment_name);
+        let score = 0;
+        if (type?.question) type.question.forEach((q, i) => { if (q.type === 'radio' && !isNaN(parseFloat(a[`q${i + 1}`]))) score += parseFloat(a[`q${i + 1}`]); });
+        
+        const tr = document.createElement('tr'); tr.className = 'hover:bg-gray-50 text-gray-700';
+        tr.innerHTML = `<td class="border-b px-4 py-2">${new Date(a.timestamp).toLocaleDateString('th-TH')}</td><td class="border-b px-4 py-2">${a.datetime_edit ? new Date(a.datetime_edit).toLocaleDateString('th-TH') : '-'}</td><td class="border-b px-4 py-2">${a.student_fullname}</td><td class="border-b px-4 py-2">${a.student_group}</td><td class="border-b px-4 py-2">${a.assessment_name}</td><td class="border-b px-4 py-2 font-semibold text-blue-700">${type ? score : 'N/A'}</td><td class="border-b px-4 py-2 text-center"><button onclick="editAssessment('${a.id}')" class="text-blue-600 hover:text-blue-800 mr-3"><i class="fas fa-edit"></i></button><button onclick="confirmDelete('${a.id}')" class="text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button></td>`;
+        list.appendChild(tr);
+    });
+
+    document.getElementById('paginationControls').innerHTML = `<span>แสดง ${start + 1}-${Math.min(start + ITEMS_PER_PAGE, filteredAssessments.length)} จาก ${filteredAssessments.length}</span><div class="flex space-x-2"><button onclick="changePage(-1)" ${currentPage === 1 ? 'disabled' : ''} class="bg-gray-200 px-3 py-1 rounded disabled:opacity-50">ก่อนหน้า</button><span>หน้า ${currentPage} / ${totalPages}</span><button onclick="changePage(1)" ${currentPage === totalPages ? 'disabled' : ''} class="bg-gray-200 px-3 py-1 rounded disabled:opacity-50">ถัดไป</button></div>`;
+}
+
+function changePage(d) { currentPage += d; renderPaginatedAssessments(); }
+function searchAssessments() {
+    const term = document.getElementById('searchInput').value.toLowerCase();
+    filteredAssessments = allData.assessments.filter(a => a.student_fullname.toLowerCase().includes(term) || a.assessment_name.toLowerCase().includes(term));
+    currentPage = 1; renderPaginatedAssessments();
+}
+function clearSearch() { document.getElementById('searchInput').value = ''; loadManageAssessments(); }
+
+function editAssessment(id) {
+    const a = allData.assessments.find(x => x.id === id);
+    const type = allData.assessmentTypes.find(t => t.name === a.assessment_name);
+    if (!type) return Swal.fire('ผิดพลาด', 'ไม่พบประเภทของแบบประเมินนี้', 'error');
+    currentEditAssessmentId = id; assessmentAnswers = {};
+    
+    let html = `<div class="space-y-6">`;
+    type.question.forEach((q, i) => {
+        const ans = a[`q${i + 1}`] || ''; assessmentAnswers[q.id] = ans;
+        html += `<div class="bg-gray-50 rounded-lg p-4"><h4 class="font-semibold mb-3 text-gray-800">${q.text}</h4>`;
+        if (q.type === 'radio') {
+            html += '<div class="flex flex-wrap gap-4">';
+            (q.options || []).forEach(opt => html += `<label class="flex items-center space-x-2 cursor-pointer"><input type="radio" name="${q.id}" value="${opt.value}" ${String(ans) === String(opt.value) ? 'checked' : ''} onchange="updateAnswer('${q.id}', this.value)" class="text-blue-600 focus:ring-blue-500 h-5 w-5"> <span class="text-gray-700">${opt.text}</span></label>`);
+            html += '</div>';
+        } else if (q.type === 'select') {
+            html += `<select name="${q.id}" onchange="updateAnswer('${q.id}', this.value)" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"><option value="">-- เลือก --</option>`;
+            (q.options || []).forEach(opt => html += `<option value="${opt.value}" ${String(ans) === String(opt.value) ? 'selected' : ''}>${opt.text}</option>`);
+            html += `</select>`;
+        } else if (q.type === 'textarea') {
+            html += `<textarea name="${q.id}" oninput="updateAnswer('${q.id}', this.value)" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">${ans}</textarea>`;
+        }
+        html += '</div>';
+    });
+    document.getElementById('editContent').innerHTML = html + `</div>`;
+    document.getElementById('editModal').classList.replace('hidden', 'flex');
+}
+
+function closeEditModal() { document.getElementById('editModal').classList.replace('flex', 'hidden'); currentEditAssessmentId = null; }
+
+async function saveEditAssessment() {
+    const assessment = allData.assessments.find(a => a.id === currentEditAssessmentId);
+    const type = allData.assessmentTypes.find(t => t.name === assessment.assessment_name);
+    const updated = { id: currentEditAssessmentId }; 
+    let oldScore = 0, newScore = 0;
+    
+    (type.question || []).forEach((q, i) => {
+        updated[`q${i + 1}`] = assessmentAnswers[q.id] || '';
+        if(q.type === 'radio'){
+           if(!isNaN(parseFloat(assessment[`q${i+1}`]))) oldScore += parseFloat(assessment[`q${i+1}`]);
+           if(!isNaN(parseFloat(updated[`q${i+1}`]))) newScore += parseFloat(updated[`q${i+1}`]);
+        }
+    });
+
+
+    if (!(await Swal.fire({title: 'ยืนยันแก้ไข?', html: `คะแนนรวมเปลี่ยนจาก <b>${oldScore}</b> เป็น <b>${newScore}</b>`, showCancelButton: true, confirmButtonText: 'บันทึก'})).isConfirmed) return;
+    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    
+    try {
+        const res = await runAsync('updateAssessment', updated);
+        if (res.success) {
+            Swal.fire('สำเร็จ', 'แก้ไขเรียบร้อย', 'success');
+            const index = allData.assessments.findIndex(a => a.id === currentEditAssessmentId);
+            if(index > -1) allData.assessments[index] = {...allData.assessments[index], ...updated, datetime_edit: new Date().toISOString() };
+            closeEditModal(); searchAssessments(); 
+        } else Swal.fire('ผิดพลาด', res.message, 'error');
+    } catch (e) { Swal.fire('ผิดพลาด', e.message, 'error'); }
+}
+
+async function confirmDelete(id) {
+    if (!(await Swal.fire({title: 'ยืนยันลบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'ลบ'})).isConfirmed) return;
+    Swal.fire({ title: 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    try {
+        const res = await runAsync('deleteAssessment', id);
+        if (res.success) { Swal.fire('ลบสำเร็จ!', '', 'success'); allData.assessments = allData.assessments.filter(a => a.id !== id); searchAssessments(); }
+        else Swal.fire('ผิดพลาด', res.message, 'error');
+    } catch (e) { Swal.fire('ผิดพลาด', e.message, 'error'); }
+}
+
+</script>
+</body>
+</html>
